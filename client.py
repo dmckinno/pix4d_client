@@ -2,6 +2,7 @@ import boto
 import requests
 from boto.s3.connection import OrdinaryCallingFormat
 import os
+import simplejson as json
 
 client_id = 'YOUR CLIENT ID'
 client_secret = 'YOUR CLIENT SECRET'
@@ -170,7 +171,7 @@ if __name__ == '__main__':
             results = requests.get(job_download_url, headers=pix4d_api_credentials)
             print bcolors.OKBLUE + "Your results can also be viewed graphically in the Pix4D web app at https://mapper.pix4d.com/. Just login with your credentials." + bcolors.ENDC
             print bcolors.OKBLUE + "Otherwise, grab one of the URLs below. Note that full resolution processing is currently in the works." + bcolors.ENDC
-            print results.json()
+            print(json.dumps(results.json(), sort_keys=True, indent=4 * ' '))
 
         elif job_status.json()['description'] == 'Waiting for processing':
             print bcolors.OKGREEN + "Your job is processing. We have no idea how long this will take so hang tight." + bcolors.ENDC
