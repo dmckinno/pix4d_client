@@ -3,6 +3,10 @@ import requests
 from boto.s3.connection import OrdinaryCallingFormat
 import os
 import simplejson as json
+import re
+import urllib2
+from colorama import init
+init()
 
 client_id = 'YOUR CLIENT ID'
 client_secret = 'YOUR CLIENT SECRET'
@@ -18,7 +22,7 @@ class bcolors:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
-
+	
 def upload_project(s3_credentials, image_list):
     # Connect to s3 using the temporal credentials an get the bucket where you need to upload the project
     s3conn, bucket = connect_to_s3(s3_credentials)
@@ -58,7 +62,31 @@ def upload_image_to_s3(key_root, bucket, image, n):
             print key_root
             print key
 
+def flat(l):
+    def _flat(l, r):    
+        if type(l) is not list:
+            r.append(l)
+        else:
+            for i in l:
+                r = r + flat(i)
+        return r
+    return _flat(l, [])
 
+def find_between( s, first, last ):
+    try:
+        start = s.index( first ) + len( first )
+        end = s.index( last, start )
+        return s[start:end]
+    except ValueError:
+        return ""
+
+def int_conv(string):
+    try:
+        i = int(string)
+        return i
+    except ValueError:
+        return 0
+              
 if __name__ == '__main__':
 
     mode = raw_input(bcolors.OKBLUE + "Do you want to PROCESS a job or CHECK on a job you have already processed? " + bcolors.ENDC)
@@ -171,8 +199,57 @@ if __name__ == '__main__':
             results = requests.get(job_download_url, headers=pix4d_api_credentials)
             print bcolors.OKBLUE + "Your results can also be viewed graphically in the Pix4D web app at https://mapper.pix4d.com/. Just login with your credentials." + bcolors.ENDC
             print bcolors.OKBLUE + "Otherwise, grab one of the URLs below. Note that full resolution processing is currently in the works." + bcolors.ENDC
-            print(json.dumps(results.json(), sort_keys=True, indent=4 * ' '))
+            result_string = list(flat(json.dumps(results.json(), sort_keys=True)))[0]
+            old_list = result_string.split(": ")
+            regex = re.compile('^\"http')
+            new_list = [s for s in old_list if regex.match(s)]    
+            
+            counter = 0
+            links = []
+            for i in new_list:
+                # Extract the file name
+                name_first_part = find_between(i, "/", "?")
+                name = name_first_part.split("/")[-1]
+                print str(counter+1) + ".- " + name
+                links.append([name, find_between(i, "\"", "\"")]) #append file name and link
+                counter += 1
+            
+            download = raw_input(bcolors.OKBLUE + "Select a file to download: " + bcolors.ENDC)
+            download = int_conv(download)
+            
+            if download > 0:
+                if download not in range (1, counter+1):
+                    print bcolors.FAIL + "That was not an option. Try again." + bcolors.ENDC
+                else:
+                    # Code from PabloG http://stackoverflow.com/questions/22676/how-do-i-download-a-file-over-http-using-python
+                    file_name = links[download-1][0]
+                    url = links[download-1][1]
 
+                    # Open the url
+                    u = urllib2.urlopen(url)
+                    f = open(file_name, 'wb')
+                    meta = u.info()
+                    file_size = int(meta.getheaders("Content-Length")[0])
+                    print "Downloading: %s Bytes: %s" % (file_name, file_size)
+
+                    file_size_dl = 0
+                    block_sz = 8192
+                    while True:
+                        buffer = u.read(block_sz)
+                        if not buffer:
+                            break
+
+                        file_size_dl += len(buffer)
+                        f.write(buffer)
+                        status = r"%10d  [%3.2f%%]" % (file_size_dl, file_size_dl * 100. / file_size)
+                        status = status + chr(8)*(len(status)+1)
+                        print status,
+                    
+                    f.close()
+
+            else:
+                print bcolors.FAIL + "That was not an option. Try again." + bcolors.ENDC
+                            
         elif job_status.json()['description'] == 'Waiting for processing':
             print bcolors.OKGREEN + "Your job is processing. We have no idea how long this will take so hang tight." + bcolors.ENDC
         else:
