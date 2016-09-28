@@ -225,7 +225,7 @@ if __name__ == '__main__':
                     file_name = links[download-1][0]
                     url = links[download-1][1]
 
-
+                    # Open the url
                     u = urllib2.urlopen(url)
                     f = open(file_name, 'wb')
                     meta = u.info()
